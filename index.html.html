@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Note Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --text-muted: #666;
+    --text-dim: #444;
+    --accent: #c8f560;
+    --accent-dim: #c8f56020;
+    --hard: #f5a623;
+    --hard-dim: #f5a62320;
+    --deferred: #8888ff;
+    --deferred-dim: #8888ff20;
+    --done-color: #333;
+    --done-text: #444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 20px; }
+  
+  .header { max-width: 860px; margin: 0 auto 32px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .header-left h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; }
+  .header-left p { font-size: 13px; color: var(--text-muted); margin-top: 4px; font-family: 'DM Mono', monospace; }
+  .header-right { text-align: right; }
+  .big-count { font-family: 'DM Mono', monospace; font-size: 48px; font-weight: 500; color: var(--accent); line-height: 1; }
+  .big-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .progress-wrap { max-width: 860px; margin: 0 auto 28px; background: var(--border); border-radius: 2px; height: 3px; }
+  .progress-fill { height: 3px; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
+
+  .stats-row { max-width: 860px; margin: 0 auto 32px; display: flex; gap: 12px; }
+  .stat-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 16px; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .stat-pill strong { font-size: 20px; display: block; font-weight: 500; }
+  .stat-pill.accent strong { color: var(--accent); }
+  .stat-pill.hard strong { color: var(--hard); }
+  .stat-pill.deferred strong { color: var(--deferred); }
+
+  .container { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+  .group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .group-header { padding: 12px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+  .group-header:hover { background: var(--surface2); }
+  .group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-scheduled { background: var(--accent); }
+  .dot-hard { background: var(--hard); }
+  .dot-deferred { background: var(--deferred); }
+  .dot-schedule { background: #888; }
+  .group-title { font-size: 13px; font-weight: 500; flex: 1; }
+  .group-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .group-badge { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; }
+  .badge-scheduled { background: var(--accent-dim); color: var(--accent); }
+  .badge-hard { background: var(--hard-dim); color: var(--hard); }
+  .badge-deferred { background: var(--deferred-dim); color: var(--deferred); }
+  .badge-schedule { background: #88888820; color: #888; }
+  .chevron { font-size: 10px; color: var(--text-muted); transition: transform 0.2s; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .group-body { display: none; }
+  .group-body.open { display: block; }
+
+  .note-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .note-row:last-child { border-bottom: none; }
+  .note-row:hover { background: var(--surface2); }
+  .note-row.done { background: transparent; }
+
+  .note-name { font-size: 13px; flex: 1; transition: color 0.2s; }
+  .note-row.done .note-name { color: var(--done-text); text-decoration: line-through; }
+
+  .check { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--border); appearance: none; -webkit-appearance: none; cursor: pointer; flex-shrink: 0; position: relative; transition: all 0.15s; }
+  .check:checked { border-color: var(--accent); background: var(--accent); }
+  .check:checked::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; color: #000; font-weight: 700; }
+  .check.hard-check:checked { border-color: var(--hard); background: var(--hard); }
+  .check.deferred-check:checked { border-color: var(--deferred); background: var(--deferred); }
+
+  .note-tag { font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 3px; }
+  .tag-hard { background: var(--hard-dim); color: var(--hard); }
+  .tag-deferred { background: var(--deferred-dim); color: var(--deferred); }
+  .tag-to-schedule { background: #88888818; color: #888; }
+
+  .done-banner { display: none; text-align: center; padding: 8px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); border-top: 1px solid var(--border); }
+  .done-banner.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>File Note Tracker</h1>
+    <p>Tue 5 May – Mon 12 May 2026</p>
+  </div>
+  <div class="header-right">
+    <div class="big-count" id="pct">0%</div>
+    <div class="big-label">complete</div>
+  </div>
+</div>
+
+<div class="progress-wrap"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+
+<div class="stats-row">
+  <div class="stat-pill accent"><strong id="s-done">0</strong>done</div>
+  <div class="stat-pill"><strong id="s-remaining">0</strong>remaining</div>
+  <div class="stat-pill"><strong id="s-total">0</strong>total</div>
+  <div class="stat-pill hard"><strong id="s-hard">0</strong>hard left</div>
+  <div class="stat-pill deferred"><strong id="s-deferred">0</strong>deferred</div>
+</div>
+
+<div class="container" id="container"></div>
+
+<script>
+const groups = [
+  {
+    id: 'today', title: 'Today — Tue 5 May', type: 'scheduled', open: true,
+    notes: [
+      'Tonna, Fred & Toni',
+      'De Lorenzo, Dominic & Rebecca',
+      
+    ]
+  },
+  {
+    id: 'wed', title: 'Wednesday 6 May', type: 'scheduled', open: true,
+    notes: [
+      'Singer, Campbell & Priscilla',
+      'D\'Costa, Craig',
+      'Gemell, Chris',
+      'Matwijow, Peter & Janice',
+      'Pickup (Will & Lee)',
+      'Whisker, Matthew',
+    ]
+  },
+  {
+    id: 'thu', title: 'Thursday 7 May', type: 'scheduled', open: false,
+    notes: [
+      'Frias Diaz, Carlos & Sophie Diller',
+      'Sargeant, Susan',
+      'Whichelow, Mark',
+      'Bates, Rohan',
+      'Bulters, Gerard & Sue',
+      'Gordon, Paul',
+    ]
+  },
+  {
+    id: 'fri', title: 'Friday 8 May', type: 'scheduled', open: false,
+    notes: [
+      'Hodge, Greg',
+      'Baskus, Deb',
+      'Shvarts, Izya and Feyga',
+      'Curran, Sean',
+      'Kowalski, Krystyna',
+      'Leech, Jen and Nick',
+    ]
+  },
+  {
+    id: 'sat', title: 'Saturday 9 May', type: 'scheduled', open: false,
+    notes: [
+      'Mascord, Cathie',
+      'Laman, Peter & Sue',
+      'Winterflood, Alison',
+      'Neil and Corin',
+      'Hunt, Tony',
+      'O\'Connell, John',
+    ]
+  },
+  {
+    id: 'sun', title: 'Sunday 10 May', type: 'scheduled', open: false,
+    notes: [
+      'Marshall, Rob',
+      'Purcell, Andrew & Rahneida',
+      'Cook, Nathan',
+    ]
+  },
+  {
+    id: 'mon', title: 'Monday 12 May', type: 'scheduled', open: false,
+    notes: [
+      'Stewart, Charlie',
+      'Peterson, Trent',
+      'Jenkins, Graeme',
+      'McKenna, Mark',
+      'O\'Donoghue, Sally',
+      'Phillips, Clive',
+      'Sebastian, Ray',
+      'Sit, Brendan',
+      'Holehouse, James',
+      'Wilkinson, Paul',
+      'Wood, Ross',
+      'Chan, Mark',
+    ]
+  },
+  {
+    id: 'hard-weekend', title: 'Weekend Hard Notes', type: 'hard', open: false,
+    notes: [
+      'Tregoning, Paul',
+      'Middleton, Brian',
+      'Vardabasso, Monica',
+    ]
+  },
+  {
+    id: 'deferred', title: 'Deferred — Hard Notes', type: 'deferred', open: false,
+    notes: [
+      'Baldwin, Scott',
+      'Edelstein, Jason',
+      'McGuiness, David',
+      'Lavery, Thomas',
+    ]
+  },
+  {
+    id: 'toschedule', title: 'To Schedule', type: 'schedule', open: false,
+    notes: [
+      'Soire, Daniel',
+      'Ilijic, Matt',
+      'Wright, Daniel',
+      'Meale, David',
+      'Gillies, David',
+    ]
+  },
+];
+
+const state = {};
+let totalNotes = 0;
+
+function dotClass(type) {
+  return { scheduled: 'dot-scheduled', hard: 'dot-hard', deferred: 'dot-deferred', schedule: 'dot-schedule' }[type];
+}
+function badgeClass(type) {
+  return { scheduled: 'badge-scheduled', hard: 'badge-hard', deferred: 'badge-deferred', schedule: 'badge-schedule' }[type];
+}
+function checkClass(type) {
+  return { hard: 'hard-check', deferred: 'deferred-check' }[type] || '';
+}
+function tagHTML(type) {
+  if (type === 'hard') return '<span class="note-tag tag-hard">HARD</span>';
+  if (type === 'deferred') return '<span class="note-tag tag-deferred">DEFERRED</span>';
+  if (type === 'schedule') return '<span class="note-tag tag-to-schedule">TO SCHEDULE</span>';
+  return '';
+}
+
+function buildUI() {
+  const container = document.getElementById('container');
+  groups.forEach(g => {
+    totalNotes += g.notes.length;
+    g.notes.forEach(n => state[g.id + '|' + n] = false);
+
+    const div = document.createElement('div');
+    div.className = 'group';
+    div.id = 'group-' + g.id;
+
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.innerHTML = `
+      <div class="group-dot ${dotClass(g.type)}"></div>
+      <div class="group-title">${g.title}</div>
+      <div class="group-meta">${g.notes.length} notes</div>
+      <div class="group-badge ${badgeClass(g.type)}" id="badge-${g.id}">0/${g.notes.length}</div>
+      <div class="chevron ${g.open ? 'open' : ''}" id="chev-${g.id}">▶</div>
+    `;
+    header.onclick = () => toggleGroup(g.id);
+
+    const body = document.createElement('div');
+    body.className = 'group-body' + (g.open ? ' open' : '');
+    body.id = 'body-' + g.id;
+
+    g.notes.forEach(n => {
+      const key = g.id + '|' + n;
+      const row = document.createElement('div');
+      row.className = 'note-row';
+      row.id = 'row-' + key.replace(/[^a-z0-9]/gi, '_');
+      row.innerHTML = `
+        <input type="checkbox" class="check ${checkClass(g.type)}" id="cb-${key.replace(/[^a-z0-9]/gi,'_')}" onchange="tick('${g.id}','${n.replace(/'/g,"\\'")}')">
+        <span class="note-name">${n}</span>
+        ${tagHTML(g.type)}
+      `;
+      body.appendChild(row);
+    });
+
+    const banner = document.createElement('div');
+    banner.className = 'done-banner';
+    banner.id = 'banner-' + g.id;
+    banner.textContent = '✓ All done';
+    body.appendChild(banner);
+
+    div.appendChild(header);
+    div.appendChild(body);
+    container.appendChild(div);
+  });
+
+  document.getElementById('s-total').textContent = totalNotes;
+  updateStats();
+}
+
+function toggleGroup(id) {
+  const body = document.getElementById('body-' + id);
+  const chev = document.getElementById('chev-' + id);
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+
+function tick(groupId, name) {
+  const key = groupId + '|' + name;
+  const safeKey = key.replace(/[^a-z0-9]/gi, '_');
+  const cb = document.getElementById('cb-' + safeKey);
+  const row = document.getElementById('row-' + safeKey);
+  state[key] = cb.checked;
+  row.classList.toggle('done', cb.checked);
+
+  const g = groups.find(x => x.id === groupId);
+  const groupDone = g.notes.filter(n => state[groupId + '|' + n]).length;
+  const badge = document.getElementById('badge-' + groupId);
+  badge.textContent = groupDone === g.notes.length ? '✓ Done' : groupDone + '/' + g.notes.length;
+
+  const banner = document.getElementById('banner-' + groupId);
+  banner.classList.toggle('show', groupDone === g.notes.length);
+
+  localStorage.setItem('fn_tracker_state', JSON.stringify(state));
+  updateStats();
+}
+
+function updateStats() {
+  const done = Object.values(state).filter(Boolean).length;
+  const remaining = totalNotes - done;
+  const pct = Math.round(done / totalNotes * 100);
+
+  const hardGroup = groups.find(g => g.id === 'hard-weekend');
+  const deferredGroup = groups.find(g => g.id === 'deferred');
+  const hardLeft = [...hardGroup.notes, ...deferredGroup.notes].filter(n =>
+    !state['hard-weekend|' + n] && !state['deferred|' + n]
+  ).length;
+  const deferredLeft = deferredGroup.notes.filter(n => !state['deferred|' + n]).length;
+
+  document.getElementById('s-done').textContent = done;
+  document.getElementById('s-remaining').textContent = remaining;
+  document.getElementById('s-hard').textContent = hardLeft;
+  document.getElementById('s-deferred').textContent = deferredLeft;
+  document.getElementById('pct').textContent = pct + '%';
+  document.getElementById('progress').style.width = pct + '%';
+}
+
+try {
+  const saved = localStorage.getItem('fn_tracker_state');
+  if (saved) Object.assign(state, JSON.parse(saved));
+} catch(e) {}
+
+buildUI();
+
+groups.forEach(g => {
+  g.notes.forEach(n => {
+    const key = g.id + '|' + n;
+    if (state[key]) {
+      const safeKey = key.replace(/[^a-z0-9]/gi, '_');
+      const cb = document.getElementById('cb-' + safeKey);
+      const row = document.getElementById('row-' + safeKey);
+      if (cb) cb.checked = true;
+      if (row) row.classList.add('done');
+    }
+  });
+  const groupDone = g.notes.filter(n => state[g.id + '|' + n]).length;
+  const badge = document.getElementById('badge-' + g.id);
+  if (badge) badge.textContent = groupDone === g.notes.length ? '✓ Done' : groupDone + '/' + g.notes.length;
+  const banner = document.getElementById('banner-' + g.id);
+  if (banner) banner.classList.toggle('show', groupDone === g.notes.length);
+});
+updateStats();
+</script>
+</body>
+</html>
