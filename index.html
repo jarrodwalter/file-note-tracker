@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JW Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --muted: #666;
+    --accent: #c8f560;
+    --accent-dim: rgba(200,245,96,0.10);
+    --done-text: #444;
+    --morning: #f5a623;
+    --afternoon: #50c8f5;
+    --evening: #a78bfa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0 0 80px; }
+
+  .nav { max-width: 700px; margin: 0 auto; padding: 20px 20px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .nav-brand { font-size: 16px; font-weight: 600; margin-right: auto; }
+  .nav-tab { padding: 6px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--muted); user-select: none; transition: all 0.15s; }
+  .nav-tab.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+  .sync { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-left: 4px; }
+  .sync.syncing { color: var(--morning); }
+  .sync.synced { color: var(--accent); }
+
+  .page { display: none; max-width: 700px; margin: 0 auto; padding: 20px; }
+  .page.active { display: block; }
+
+  .ph { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+  .ph h2 { font-size: 20px; font-weight: 600; }
+  .ph p { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: 'DM Mono', monospace; }
+  .bignum { font-family: 'DM Mono', monospace; font-size: 36px; font-weight: 500; color: var(--accent); line-height: 1; text-align: right; }
+  .biglabel { font-size: 11px; color: var(--muted); text-align: right; }
+
+  .prog-wrap { background: var(--border); border-radius: 2px; height: 3px; margin-bottom: 16px; }
+  .prog-fill { height: 3px; background: var(--accent); border-radius: 2px; transition: width 0.4s; width: 0%; }
+
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .sp { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+  .sp strong { font-size: 16px; display: block; font-weight: 500; color: var(--accent); }
+
+  .group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+  .group.drag-over { border-color: var(--accent); }
+  .gh { padding: 11px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .gh:hover { background: var(--surface2); }
+  .gdot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .gdot.muted { background: #555; }
+  .gtitle { font-size: 13px; font-weight: 500; flex: 1; }
+  .gbadge { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+  .gbadge.ok { color: var(--accent); }
+  .chev { font-size: 9px; color: var(--muted); transition: transform 0.2s; }
+  .chev.open { transform: rotate(90deg); }
+  .gbody { display: none; border-top: 1px solid var(--border); }
+  .gbody.open { display: block; }
+
+  .nr { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--border); cursor: grab; transition: background 0.15s; }
+  .nr:last-child { border-bottom: none; }
+  .nr:hover { background: var(--surface2); }
+  .nr.dragging { opacity: 0.3; }
+  .nr.done .nn { color: var(--done-text); text-decoration: line-through; }
+  .dh { color: #444; font-size: 12px; cursor: grab; flex-shrink: 0; }
+  .nn { font-size: 13px; flex: 1; cursor: text; }
+  .nn:hover { color: var(--accent); }
+  .nedit { font-size: 13px; flex: 1; background: var(--surface2); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 6px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; }
+  .cb { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--border); appearance: none; -webkit-appearance: none; cursor: pointer; flex-shrink: 0; position: relative; transition: all 0.15s; }
+  .cb:checked { border-color: var(--accent); background: var(--accent); }
+  .cb:checked::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 9px; color: #000; font-weight: 800; }
+  .msel { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 10px; padding: 2px 4px; cursor: pointer; max-width: 90px; }
+  .delbtn { color: #444; font-size: 14px; cursor: pointer; background: none; border: none; padding: 0 2px; transition: color 0.15s; flex-shrink: 0; }
+  .delbtn:hover { color: #ff5555; }
+  .donedate { font-family: 'DM Mono', monospace; font-size: 10px; color: #555; flex-shrink: 0; }
+  .banner { text-align: center; padding: 7px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); border-top: 1px solid var(--border); display: none; }
+  .banner.show { display: block; }
+
+  .date-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+  .dnav { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; color: var(--text); font-size: 16px; cursor: pointer; flex-shrink: 0; }
+  .dnav:hover { border-color: var(--accent); }
+  .dinput { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; color: var(--text); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; flex: 1; cursor: pointer; }
+  .dinput:focus { border-color: var(--accent); }
+  .todaybtn { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
+  .todaybtn:hover { background: var(--accent); color: #000; }
+  .daylabel { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+  .bh { padding: 10px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .bdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .btitle { font-size: 13px; font-weight: 500; flex: 1; }
+  .task-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .task-row:hover { background: var(--surface2); }
+  .task-row.done .tname { color: var(--done-text); text-decoration: line-through; }
+  .tname { font-size: 13px; flex: 1; cursor: text; }
+  .tname:hover { color: var(--accent); }
+  .inline-add { display: flex; gap: 8px; padding: 8px 16px; }
+  .inline-add input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none; }
+  .inline-add input:focus { border-color: var(--accent); }
+  .inline-add button { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  .inline-add button:hover { background: var(--accent); color: #000; }
+  .empty { padding: 14px 16px; font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  .modal-wrap { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+  .modal-wrap.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 340px; }
+  .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .modal input, .modal select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; margin-bottom: 10px; }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal select { margin-bottom: 16px; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-c { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+  .btn-a { background: var(--accent); border: none; color: #000; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  .fab { position: fixed; bottom: 24px; right: 24px; background: var(--accent); color: #000; border: none; border-radius: 50px; padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 20px rgba(200,245,96,0.25); font-family: 'DM Sans', sans-serif; z-index: 50; }
+  .fab:hover { transform: scale(1.04); }
+  .loading { padding: 60px 20px; text-align: center; font-family: 'DM Mono', monospace; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-brand">JW Tracker</div>
+  <div class="nav-tab active" id="tab-fn" onclick="switchTab('fn')">File Notes</div>
+  <div class="nav-tab" id="tab-dt" onclick="switchTab('dt')">Daily Tasks</div>
+  <div class="sync" id="sync">connecting...</div>
+</div>
+
+<!-- FILE NOTES -->
+<div class="page active" id="page-fn">
+  <div class="ph">
+    <div><h2>File Notes</h2><p>ongoing</p></div>
+    <div><div class="bignum" id="fn-pct">0%</div><div class="biglabel">complete</div></div>
+  </div>
+  <div class="prog-wrap"><div class="prog-fill" id="fn-prog"></div></div>
+  <div class="stats">
+    <div class="sp"><strong id="fn-done">0</strong>done</div>
+    <div class="sp"><strong id="fn-rem">0</strong>remaining</div>
+    <div class="sp"><strong id="fn-total">0</strong>total</div>
+  </div>
+  <div id="fn-load" class="loading">Loading...</div>
+  <div id="fn-cont" style="display:none"></div>
+</div>
+
+<!-- DAILY TASKS -->
+<div class="page" id="page-dt">
+  <div class="date-row">
+    <button class="dnav" onclick="chDate(-1)">‹</button>
+    <input type="date" class="dinput" id="dinput" onchange="onDChange()">
+    <button class="dnav" onclick="chDate(1)">›</button>
+    <button class="todaybtn" onclick="goToday()">Today</button>
+  </div>
+  <div class="daylabel" id="daylabel"></div>
+  <div id="dt-cont"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-wrap" id="modal">
+  <div class="modal">
+    <h3>Add File Note</h3>
+    <input type="text" id="m-name" placeholder="Client name...">
+    <select id="m-section"><option value="todo">To Do</option></select>
+    <div class="modal-btns">
+      <button class="btn-c" onclick="closeModal()">Cancel</button>
+      <button class="btn-a" onclick="addNote()">Add</button>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fab" onclick="openModal()">+ Add Note</button>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+// Password
+(function(){
+  const k='jw_auth';
+  if(sessionStorage.getItem(k)==='ok') return;
+  document.body.style.display='none';
+  const p=prompt('Enter password:');
+  if(p==='Lachlan'){sessionStorage.setItem(k,'ok');document.body.style.display='';}
+  else{document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;">Access denied.</div>';document.body.style.display='';}
+})();
+
+const app = initializeApp({ databaseURL: 'https://file-note-tracker-default-rtdb.asia-southeast1.firebasedatabase.app' });
+const db = getDatabase(app);
+const fnRef = ref(db, 'filenotes2');
+const dtRef = ref(db, 'dailytasks2');
+
+// ── HELPERS ──────────────────────────────────────────────────
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(str){
+  const d=new Date(str+'T00:00:00');
+  return d.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+function fmtShort(str){
+  if(!str) return '';
+  const d=new Date(str+'T00:00:00');
+  return d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+}
+function setSync(s){
+  const el=document.getElementById('sync');
+  if(s==='syncing'){el.textContent='saving...';el.className='sync syncing';}
+  else if(s==='synced'){el.textContent='✓ synced';el.className='sync synced';}
+  else{el.textContent='connecting...';el.className='sync';}
+}
+
+// ── FILE NOTES ────────────────────────────────────────────────
+const ALL_NOTES=[
+  'Singer, Campbell & Priscilla',"D'Costa, Craig",'Gemell, Chris','Matwijow, Peter & Janice',
+  'Pickup (Will & Lee)','Whisker, Matthew','Frias Diaz, Carlos & Sophie Diller','Sargeant, Susan',
+  'Whichelow, Mark','Bates, Rohan','Bulters, Gerard & Sue','Gordon, Paul','Hodge, Greg',
+  'Baskus, Deb','Shvarts, Izya and Feyga','Curran, Sean','Kowalski, Krystyna','Leech, Jen and Nick',
+  'Mascord, Cathie','Laman, Peter & Sue','Winterflood, Alison','Neil and Corin','Hunt, Tony',
+  "O'Connell, John",'Marshall, Rob','Purcell, Andrew & Rahneida','Cook, Nathan','Stewart, Charlie',
+  'Peterson, Trent','Jenkins, Graeme','McKenna, Mark',"O'Donoghue, Sally",'Phillips, Clive',
+  'Sebastian, Ray','Sit, Brendan','Holehouse, James','Wilkinson, Paul','Wood, Ross','Chan, Mark',
+  'Baldwin, Scott','Edelstein, Jason','McGuiness, David','Lavery, Thomas','Tregoning, Paul',
+  'Middleton, Brian','Vardabasso, Monica','Soire, Daniel','Ilijic, Matt','Wright, Daniel',
+  'Meale, David','Gillies, David'
+];
+
+// fnData: { todo: [{name}], done: [{name, date}] }
+let fnData = null;
+let fnSaving = false;
+let dragNote = null, dragFrom = null;
+
+function defaultFN(){
+  return { todo: ALL_NOTES.map(n=>({name:n})), done:[] };
+}
+
+function saveFN(){
+  fnSaving=true; setSync('syncing');
+  set(fnRef, fnData).then(()=>{setSync('synced');fnSaving=false;});
+}
+
+function renderFN(){
+  const cont = document.getElementById('fn-cont');
+  cont.innerHTML='';
+  document.getElementById('fn-load').style.display='none';
+  cont.style.display='block';
+
+  const todo = fnData.todo||[];
+  const done = fnData.done||[];
+
+  // TO DO group
+  const tg = makeGroup('To Do', todo.length+' remaining', false, false);
+  todo.forEach(note=>{
+    const row = makeFNRow(note, false, ()=>{
+      // tick — move to done
+      fnData.todo = fnData.todo.filter(n=>n.name!==note.name);
+      fnData.done = [{name:note.name, date:todayStr()}, ...fnData.done];
+      saveFN(); renderFN(); updateFNStats();
+    }, ()=>{
+      if(confirm(`Delete "${note.name}"?`)){
+        fnData.todo=fnData.todo.filter(n=>n.name!==note.name);
+        saveFN(); renderFN(); updateFNStats();
+      }
+    }, (newName)=>{
+      note.name=newName; saveFN(); renderFN();
+    }, true);
+    tg.body.appendChild(row);
+  });
+  if(todo.length===0){
+    const e=document.createElement('div');e.className='empty';e.textContent='All done!';tg.body.appendChild(e);
+  }
+  cont.appendChild(tg.group);
+
+  // DONE group
+  const dg = makeGroup('Done', done.length+' completed', true, false);
+  done.forEach(note=>{
+    const row = makeFNRow(note, true, ()=>{
+      // untick — move back to todo
+      fnData.done = fnData.done.filter(n=>n.name!==note.name);
+      fnData.todo = [...fnData.todo, {name:note.name}];
+      saveFN(); renderFN(); updateFNStats();
+    }, ()=>{
+      if(confirm(`Delete "${note.name}" from history?`)){
+        fnData.done=fnData.done.filter(n=>n.name!==note.name);
+        saveFN(); renderFN(); updateFNStats();
+      }
+    }, (newName)=>{
+      note.name=newName; saveFN(); renderFN();
+    }, false);
+    dg.body.appendChild(row);
+  });
+  if(done.length===0){
+    const e=document.createElement('div');e.className='empty';e.textContent='Nothing completed yet';dg.body.appendChild(e);
+  }
+  cont.appendChild(dg.group);
+  updateFNStats();
+}
+
+function makeFNRow(note, isDone, onTick, onDel, onRename, draggable){
+  const row=document.createElement('div');
+  row.className='nr'+(isDone?' done':'');
+  if(draggable) row.draggable=true;
+
+  const dh=document.createElement('span');dh.className='dh';dh.textContent='⠿';
+  const cb=document.createElement('input');cb.type='checkbox';cb.className='cb';cb.checked=isDone;
+  const nn=document.createElement('span');nn.className='nn';nn.textContent=note.name;
+
+  cb.addEventListener('change',()=>onTick());
+  nn.addEventListener('click',e=>{
+    e.stopPropagation();
+    const inp=document.createElement('input');inp.className='nedit';inp.value=note.name;
+    nn.replaceWith(inp);inp.focus();inp.select();row.draggable=false;
+    const fin=()=>{const v=inp.value.trim();if(v&&v!==note.name)onRename(v);else renderFN();};
+    inp.addEventListener('blur',fin);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape'){inp.value=note.name;inp.blur();}});
+  });
+
+  const delbtn=document.createElement('button');delbtn.className='delbtn';delbtn.textContent='✕';
+  delbtn.addEventListener('click',e=>{e.stopPropagation();onDel();});
+
+  row.appendChild(dh);row.appendChild(cb);row.appendChild(nn);
+
+  if(isDone && note.date){
+    const dd=document.createElement('span');dd.className='donedate';dd.textContent=fmtShort(note.date);
+    row.appendChild(dd);
+  }
+  row.appendChild(delbtn);
+
+  if(draggable){
+    row.addEventListener('dragstart',()=>{dragNote=note;dragFrom='todo';setTimeout(()=>row.classList.add('dragging'),0);});
+    row.addEventListener('dragend',()=>row.classList.remove('dragging'));
+  }
+  return row;
+}
+
+function makeGroup(title, badge, muted, startOpen){
+  const group=document.createElement('div');group.className='group';
+  const gh=document.createElement('div');gh.className='gh';
+  const dot=document.createElement('div');dot.className='gdot'+(muted?' muted':'');
+  const gtitle=document.createElement('div');gtitle.className='gtitle';gtitle.textContent=title;
+  const gbadge=document.createElement('div');gbadge.className='gbadge';gbadge.textContent=badge;
+  const chev=document.createElement('div');chev.className='chev'+(startOpen?' open':'');chev.textContent='▶';
+  gh.appendChild(dot);gh.appendChild(gtitle);gh.appendChild(gbadge);gh.appendChild(chev);
+  const body=document.createElement('div');body.className='gbody'+(startOpen?' open':'');
+  gh.addEventListener('click',()=>{body.classList.toggle('open');chev.classList.toggle('open');});
+  group.appendChild(gh);group.appendChild(body);
+  return {group,body,gbadge,chev};
+}
+
+function updateFNStats(){
+  const todo=(fnData.todo||[]).length;
+  const done=(fnData.done||[]).length;
+  const total=todo+done;
+  const pct=total?Math.round(done/total*100):0;
+  document.getElementById('fn-done').textContent=done;
+  document.getElementById('fn-rem').textContent=todo;
+  document.getElementById('fn-total').textContent=total;
+  document.getElementById('fn-pct').textContent=pct+'%';
+  document.getElementById('fn-prog').style.width=pct+'%';
+}
+
+// ── DAILY TASKS ───────────────────────────────────────────────
+const BLOCKS=[
+  {id:'morning',label:'Morning',color:'var(--morning)'},
+  {id:'afternoon',label:'Afternoon',color:'var(--afternoon)'},
+  {id:'evening',label:'Evening',color:'var(--evening)'},
+];
+
+let dtData={};
+let dtSaving=false;
+let curDate=todayStr();
+
+function saveDT(){
+  dtSaving=true;setSync('syncing');
+  set(dtRef,dtData).then(()=>{setSync('synced');dtSaving=false;});
+}
+
+function ensureDate(d){
+  if(!dtData[d])dtData[d]={};
+  BLOCKS.forEach(b=>{if(!dtData[d][b.id])dtData[d][b.id]=[];});
+}
+
+function renderDT(){
+  document.getElementById('dinput').value=curDate;
+  document.getElementById('daylabel').textContent=fmtDate(curDate);
+  ensureDate(curDate);
+  const cont=document.getElementById('dt-cont');
+  cont.innerHTML='';
+  const day=dtData[curDate];
+
+  BLOCKS.forEach(block=>{
+    const tasks=day[block.id]||[];
+    const doneCt=tasks.filter(t=>t.done).length;
+    const group=document.createElement('div');group.className='group';
+
+    const bh=document.createElement('div');bh.className='bh';
+    bh.innerHTML=`<div class="bdot" style="background:${block.color}"></div><div class="btitle" style="color:${block.color}">${block.label}</div><div class="gbadge">${doneCt}/${tasks.length}</div>`;
+    group.appendChild(bh);
+
+    if(tasks.length===0){
+      const e=document.createElement('div');e.className='empty';e.textContent='No tasks yet';group.appendChild(e);
+    } else {
+      tasks.forEach(task=>{
+        const row=document.createElement('div');
+        row.className='task-row'+(task.done?' done':'');
+        const cb=document.createElement('input');cb.type='checkbox';cb.className='cb';cb.checked=task.done;
+        const tn=document.createElement('span');tn.className='tname';tn.textContent=task.name;
+        const del=document.createElement('button');del.className='delbtn';del.textContent='✕';
+
+        cb.addEventListener('change',e=>{task.done=e.target.checked;saveDT();renderDT();});
+        del.addEventListener('click',e=>{
+          e.stopPropagation();
+          if(confirm(`Delete "${task.name}"?`)){
+            day[block.id]=day[block.id].filter(t=>t.name!==task.name);
+            saveDT();renderDT();
+          }
+        });
+        tn.addEventListener('click',e=>{
+          const inp=document.createElement('input');inp.className='nedit';inp.value=task.name;
+          tn.replaceWith(inp);inp.focus();inp.select();
+          const fin=()=>{const v=inp.value.trim();if(v)task.name=v;saveDT();renderDT();};
+          inp.addEventListener('blur',fin);
+          inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape'){inp.value=task.name;inp.blur();}});
+        });
+
+        row.appendChild(cb);row.appendChild(tn);row.appendChild(del);
+        group.appendChild(row);
+      });
+    }
+
+    // Inline add
+    const ia=document.createElement('div');ia.className='inline-add';
+    ia.innerHTML=`<input type="text" placeholder="Add task..."><button>Add</button>`;
+    const iinp=ia.querySelector('input');
+    const doAdd=()=>{
+      const v=iinp.value.trim();if(!v)return;
+      day[block.id].push({name:v,done:false});
+      saveDT();renderDT();
+    };
+    ia.querySelector('button').addEventListener('click',doAdd);
+    iinp.addEventListener('keydown',e=>{if(e.key==='Enter')doAdd();});
+    group.appendChild(ia);
+    cont.appendChild(group);
+  });
+}
+
+window.chDate=function(n){
+  const d=new Date(curDate+'T00:00:00');d.setDate(d.getDate()+n);
+  curDate=d.toISOString().slice(0,10);renderDT();
+};
+window.onDChange=function(){curDate=document.getElementById('dinput').value;renderDT();};
+window.goToday=function(){curDate=todayStr();renderDT();};
+
+// ── TABS ──────────────────────────────────────────────────────
+window.switchTab=function(t){
+  ['fn','dt'].forEach(x=>{
+    document.getElementById('page-'+x).classList.toggle('active',x===t);
+    document.getElementById('tab-'+x).classList.toggle('active',x===t);
+  });
+  document.getElementById('fab').style.display=t==='fn'?'':'none';
+};
+
+// ── MODAL ─────────────────────────────────────────────────────
+window.openModal=function(){document.getElementById('m-name').value='';document.getElementById('modal').classList.add('show');document.getElementById('m-name').focus();};
+window.closeModal=function(){document.getElementById('modal').classList.remove('show');};
+window.addNote=function(){
+  const name=document.getElementById('m-name').value.trim();if(!name)return;
+  fnData.todo.push({name});
+  saveFN();renderFN();closeModal();
+};
+document.getElementById('m-name').addEventListener('keydown',e=>{if(e.key==='Enter')window.addNote();if(e.key==='Escape')window.closeModal();});
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))window.closeModal();});
+
+// ── FIREBASE ──────────────────────────────────────────────────
+onValue(fnRef,snap=>{
+  if(fnSaving)return;
+  const d=snap.val();
+  fnData=d&&d.todo!==undefined?d:defaultFN();
+  if(!fnData.todo)fnData.todo=[];
+  if(!fnData.done)fnData.done=[];
+  setSync('synced');renderFN();
+},{onlyOnce:false});
+
+onValue(dtRef,snap=>{
+  if(dtSaving)return;
+  dtData=snap.val()||{};
+  renderDT();
+},{onlyOnce:false});
+
+</script>
+</body>
+</html>
