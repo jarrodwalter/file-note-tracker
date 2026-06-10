@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Note Tracker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e8eaf0; min-height: 100vh; }
+#auth { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 14px; }
+#auth h1 { font-size: 1.2rem; font-weight: 700; color: #9ca3af; letter-spacing: 0.08em; text-transform: uppercase; }
+#auth input { background: #181c27; border: 1px solid #2a2f45; color: #e8eaf0; padding: 11px 18px; border-radius: 8px; font-size: 1rem; width: 210px; text-align: center; outline: none; }
+#auth input:focus { border-color: #4f8ef7; }
+#auth button { background: #4f8ef7; color: white; border: none; padding: 11px 0; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; width: 210px; }
+#auth-err { color: #ef4444; font-size: 0.82rem; min-height: 18px; }
+#app { display: none; }
+.hdr { background: #181c27; border-bottom: 1px solid #2a2f45; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20; }
+.hdr-title { font-weight: 700; font-size: 0.95rem; }
+.hdr-sub { font-size: 0.68rem; color: #6b7280; }
+.pill { background: #1e2335; border: 1px solid #2a2f45; border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; font-weight: 600; display: flex; gap: 5px; align-items: center; }
+.tabs { background: #181c27; border-bottom: 1px solid #2a2f45; display: flex; padding: 0 16px; gap: 2px; }
+.tab { padding: 9px 13px; font-size: 0.74rem; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.tab.active { color: #4f8ef7; border-bottom-color: #4f8ef7; }
+.content { padding: 14px; max-width: 720px; margin: 0 auto; padding-bottom: 80px; }
+.prog-box { background: #181c27; border: 1px solid #2a2f45; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+.prog-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+.prog-label { font-size: 0.68rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; }
+.prog-frac { font-size: 1rem; font-weight: 700; }
+.prog-bar-bg { background: #1e2335; border-radius: 4px; height: 5px; overflow: hidden; margin-bottom: 6px; }
+.prog-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.prog-eta { font-size: 0.67rem; color: #6b7280; margin-bottom: 8px; }
+.prog-legend { display: flex; gap: 12px; flex-wrap: wrap; }
+.leg { display: flex; align-items: center; gap: 4px; font-size: 0.62rem; color: #6b7280; }
+.leg-dot { width: 7px; height: 7px; border-radius: 50%; }
+.week-block { margin-bottom: 22px; }
+.week-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; padding-bottom: 6px; border-bottom: 1px solid #2a2f45; }
+.week-label { font-size: 0.65rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; }
+.week-stats { font-size: 0.68rem; color: #6b7280; }
+.day-row { background: #181c27; border: 1px solid #2a2f45; border-radius: 8px; margin-bottom: 4px; }
+.day-row.is-today { background: #1a0a3d; border-color: #7c3aed; }
+.day-row.is-weekend { background: #141820; border-color: #232840; }
+.day-row.all-done { border-color: #1a4a2a; }
+.day-row.is-past { opacity: 0.55; }
+.day-inner { padding: 8px 11px; }
+.day-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.day-name { font-size: 0.76rem; font-weight: 700; color: #9ca3af; display: flex; align-items: center; gap: 5px; }
+.day-row.is-today .day-name { color: #a78bfa; }
+.day-row.is-weekend .day-name { color: #818cf8; }
+.badge { font-size: 0.56rem; font-weight: 700; padding: 1px 5px; border-radius: 3px; letter-spacing: 0.06em; }
+.badge-today { background: #7c3aed; color: white; }
+.badge-wkd { background: #2d2f5a; color: #818cf8; }
+.day-count { font-size: 0.68rem; color: #6b7280; }
+.day-count.done { color: #22c55e; }
+.task-items { display: flex; flex-direction: column; gap: 4px; }
+.no-tasks { font-size: 0.68rem; color: #6b7280; font-style: italic; }
+
+/* Task row — one client+task per row */
+.task-item { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 6px; border: 1px solid #2a2f45; background: #1e2335; position: relative; }
+.task-item.is-advice-client { border-color: #1e3a5f; background: #0d1a2e; }
+.task-item.is-done { opacity: 0.55; }
+.task-client { font-size: 0.72rem; font-weight: 500; color: #c8cad4; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-item.is-done .task-client { text-decoration: line-through; color: #6b7280; }
+.task-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap; cursor: pointer; user-select: none; border: 1px solid; transition: opacity 0.15s; flex-shrink: 0; }
+.task-badge.fn { background: #0d1e3a; color: #4f8ef7; border-color: #1e3d6a; }
+.task-badge.fn.done { background: #0a1628; color: #4f8ef7; border-color: #4f8ef7; }
+.task-badge.rp { background: #2d1f00; color: #f59e0b; border-color: #4a3300; }
+.task-badge.rp.done { background: #1f1500; color: #f59e0b; border-color: #f59e0b; }
+.task-badge.ap { background: #0d3320; color: #22c55e; border-color: #1a4a2a; }
+.task-badge.ap.done { background: #071a10; color: #22c55e; border-color: #22c55e; }
+.task-badge.xp { background: #001f2d; color: #22d3ee; border-color: #0e4a5a; }
+.task-badge.xp.done { background: #001218; color: #22d3ee; border-color: #22d3ee; }
+.task-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.ta-btn { font-size: 0.6rem; padding: 2px 5px; border-radius: 3px; border: 1px solid #2a2f45; background: #141820; color: #6b7280; cursor: pointer; user-select: none; }
+.ta-btn:hover { color: #e8eaf0; border-color: #4b5563; }
+.ta-btn.del:hover { color: #ef4444; border-color: #ef4444; }
+.move-dd { position: absolute; top: 100%; right: 0; z-index: 50; margin-top: 3px; background: #181c27; border: 1px solid #f59e0b; border-radius: 7px; padding: 6px; min-width: 190px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
+.move-dd-title { font-size: 0.62rem; color: #f59e0b; font-weight: 700; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid #2a2f45; text-transform: uppercase; letter-spacing: 0.06em; }
+.move-dd-item { padding: 5px 8px; font-size: 0.72rem; color: #9ca3af; cursor: pointer; border-radius: 5px; }
+.move-dd-item:hover { background: #1e2335; }
+.move-dd-cancel { padding: 4px 8px; font-size: 0.68rem; color: #6b7280; cursor: pointer; margin-top: 3px; border-top: 1px solid #2a2f45; padding-top: 6px; }
+
+/* ALL CLIENTS TAB */
+.cl-card { background: #181c27; border: 1px solid #2a2f45; border-radius: 8px; overflow: hidden; margin-bottom: 5px; }
+.cl-card.is-advice { border-color: #2a2f45; }
+.cl-top { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.cl-name { flex: 1; font-size: 0.84rem; font-weight: 500; }
+.advice-tag { font-size: 0.58rem; font-weight: 700; background: #1a2535; color: #60a5fa; border: 1px solid #1e3a5f; padding: 2px 5px; border-radius: 3px; white-space: nowrap; }
+.del-x { font-size: 0.8rem; color: #4b5563; padding: 2px 5px; cursor: pointer; border-radius: 4px; }
+.del-x:hover { color: #ef4444; }
+.cl-task-rows { border-top: 1px solid #2a2f45; }
+.cl-task-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid #1a1e2e; }
+.cl-task-row:last-child { border-bottom: none; }
+.cl-task-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+.cl-task-badge.fn { background: #0d1e3a; color: #4f8ef7; border-color: #1e3d6a; }
+.cl-task-badge.fn.done { border-color: #4f8ef7; text-decoration: line-through; }
+.cl-task-badge.rp { background: #2d1f00; color: #f59e0b; border-color: #4a3300; }
+.cl-task-badge.rp.done { border-color: #f59e0b; text-decoration: line-through; }
+.cl-task-badge.ap { background: #0d3320; color: #22c55e; border-color: #1a4a2a; }
+.cl-task-badge.ap.done { border-color: #22c55e; text-decoration: line-through; }
+.cl-day-tag { font-size: 0.62rem; color: #6b7280; background: #1e2335; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.cl-task-del { font-size: 0.72rem; color: #4b5563; cursor: pointer; padding: 0 4px; margin-left: auto; }
+.cl-task-del:hover { color: #ef4444; }
+.cl-add-task { display: flex; gap: 5px; padding: 6px 12px; border-top: 1px solid #1a1e2e; }
+.cl-add-btn { font-size: 0.6rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; border: 1px dashed #2a2f45; background: transparent; color: #6b7280; cursor: pointer; }
+.cl-add-btn:hover { border-color: #4b5563; color: #9ca3af; }
+.cl-add-btn.fn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+.cl-add-btn.rp:hover { border-color: #f59e0b; color: #f59e0b; }
+.cl-add-btn.ap:hover { border-color: #22c55e; color: #22c55e; }
+.cl-add-btn.xp:hover { border-color: #22d3ee; color: #22d3ee; }
+
+.fab { position: fixed; bottom: 24px; right: 20px; z-index: 60; background: #4f8ef7; color: white; border-radius: 24px; padding: 10px 18px; font-size: 0.82rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 20px rgba(79,142,247,0.35); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 70; }
+.sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 80; background: #181c27; border-top: 1px solid #2a2f45; border-radius: 16px 16px 0 0; padding: 20px 16px 36px; }
+.sheet-title { font-size: 0.82rem; font-weight: 700; color: #9ca3af; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.06em; }
+.sheet input, .sheet select { width: 100%; background: #1e2335; border: 1px solid #2a2f45; border-radius: 8px; padding: 10px 12px; font-size: 0.88rem; color: #e8eaf0; outline: none; margin-bottom: 10px; }
+.sheet-btns { display: flex; gap: 8px; margin-top: 4px; }
+.btn-primary { flex: 1; background: #4f8ef7; color: white; border: none; border-radius: 8px; padding: 11px; font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+.btn-secondary { flex: 1; background: #1e2335; border: 1px solid #2a2f45; color: #9ca3af; border-radius: 8px; padding: 11px; font-size: 0.88rem; cursor: pointer; }
+.tap-close { position: fixed; inset: 0; z-index: 40; }
+.task-item[draggable="true"] { cursor: grab; }
+.task-item[draggable="true"]:active { cursor: grabbing; opacity: 0.6; }
+.day-inner.drag-over { background: #1e3a1e; border-radius: 6px; outline: 2px dashed #22c55e; }
+.unassigned-box.drag-over { outline: 2px dashed #f59e0b; background: #2a1f00; }
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <h1>File Note Tracker</h1>
+  <input type="password" id="pw" placeholder="Password" onkeydown="if(event.key==='Enter')login()" />
+  <button onclick="login()">Enter</button>
+  <span id="auth-err"></span>
+</div>
+
+<div id="app">
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">File Note Tracker</div>
+      <div class="hdr-sub">Jun 11 – Jul 3</div>
+    </div>
+    <div class="pill">
+      <span id="h-done" style="color:#22c55e">0</span>
+      <span style="color:#2a2f45">·</span>
+      <span id="h-total" style="color:#6b7280">0</span>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab" onclick="showTab('schedule')" id="tab-schedule-btn">Schedule</div>
+    <div class="tab active" onclick="showTab('clients')" id="tab-clients-btn">All Clients</div>
+  </div>
+  <div class="content">
+    <div id="tab-schedule" style="display:none"></div>
+    <div id="tab-clients"></div>
+  </div>
+  <div class="fab" onclick="openAdd()">+ Add Task</div>
+</div>
+
+<!-- Change Task Type Sheet -->
+<div id="change-overlay" class="overlay" style="display:none" onclick="closeChangeTask()"></div>
+<div id="change-sheet" class="sheet" style="display:none">
+  <div class="sheet-title">Change task type</div>
+  <div id="change-title" style="font-size:0.82rem;color:#9ca3af;margin-bottom:14px;"></div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <div class="change-opt" data-task="fn" onclick="applyChangeTask('fn')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#0d1e3a;border:1px solid #2a2f45;border-radius:8px;cursor:pointer;font-size:0.88rem;color:#4f8ef7;font-weight:600;">📄 File Note</div>
+    <div class="change-opt" data-task="rp" onclick="applyChangeTask('rp')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#2d1f00;border:1px solid #2a2f45;border-radius:8px;cursor:pointer;font-size:0.88rem;color:#f59e0b;font-weight:600;">🔍 Review Prep</div>
+    <div class="change-opt" data-task="ap" onclick="applyChangeTask('ap')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#0d3320;border:1px solid #2a2f45;border-radius:8px;cursor:pointer;font-size:0.88rem;color:#22c55e;font-weight:600;">📑 Advice Prep</div>
+    <div class="change-opt" data-task="xp" onclick="applyChangeTask('xp')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#001f2d;border:1px solid #2a2f45;border-radius:8px;cursor:pointer;font-size:0.88rem;color:#22d3ee;font-weight:600;">💻 Xplan</div>
+  </div>
+  <button class="btn-secondary" style="width:100%" onclick="closeChangeTask()">Cancel</button>
+</div>
+
+<!-- Edit Name Sheet -->
+<div id="edit-overlay" class="overlay" style="display:none" onclick="closeEdit()"></div>
+<div id="edit-sheet" class="sheet" style="display:none">
+  <div class="sheet-title">Rename Client</div>
+  <input id="edit-name" placeholder="Client name" onkeydown="if(event.key==='Enter')saveEdit()" />
+  <div class="sheet-btns">
+    <button class="btn-primary" onclick="saveEdit()">Save</button>
+    <button class="btn-secondary" onclick="closeEdit()">Cancel</button>
+  </div>
+</div>
+
+<div id="overlay" class="overlay" style="display:none" onclick="closeAdd()"></div>
+<div id="sheet" class="sheet" style="display:none">
+  <div class="sheet-title">Add Task</div>
+  <input id="new-name" placeholder="Client name e.g. Smith, John" onkeydown="if(event.key==='Enter')document.getElementById('new-task').focus()" />
+  <select id="new-task">
+    <option value="fn">📄 File Note</option>
+    <option value="rp">🔍 Review Prep</option>
+    <option value="ap">📑 Advice Prep</option>
+    <option value="xp">💻 Xplan</option>
+  </select>
+  <select id="new-day"><option value="">To Assign (no date yet)</option></select>
+  <div class="sheet-btns">
+    <button class="btn-primary" onclick="addTask()">Add</button>
+    <button class="btn-secondary" onclick="closeAdd()">Cancel</button>
+  </div>
+</div>
+<div id="tap-close" class="tap-close" style="display:none" onclick="closeMoveDD()"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const FC = {
+  apiKey: "AIzaSyC9OuvJh8s3lvQic5uO-g3P6sX7uXHvFf8",
+  authDomain: "jarrod-week.firebaseapp.com",
+  databaseURL: "https://jarrod-week-default-rtdb.firebaseio.com",
+  projectId: "jarrod-week",
+  storageBucket: "jarrod-week.firebasestorage.app",
+  messagingSenderId: "620337173565",
+  appId: "1:620337173565:web:76c4053979ff2264a34654"
+};
+const fbApp = initializeApp(FC);
+const db = getDatabase(fbApp);
+
+// ── TASK TYPES ────────────────────────────────────────────────
+const TASK_META = {
+  fn: { label: 'File Note', icon: '📄', cls: 'fn' },
+  rp: { label: 'Review Prep', icon: '🔍', cls: 'rp' },
+  ap: { label: 'Advice Prep', icon: '📑', cls: 'ap' },
+  xp: { label: 'Xplan', icon: '💻', cls: 'xp' },
+};
+
+// ── CLIENT DATA ───────────────────────────────────────────────
+const FILE_NOTE_CLIENTS = [
+  "Whichelow, Mark","Bates, Rohan","Tregoning, Paul","Middleton, Brian",
+  "Vardabasso, Monica","Kowalski, Krystyna","Leech, Jen & Nick","Laman, Peter & Sue",
+  "Winterflood, Alison","Mascord, Cathie","Neil & Corin","O'Connell, John",
+  "Marshall, Rob","Purcell, Andrew & Rahneida","Cook, Nathan","Baldwin, Scott",
+  "Edelstein, Jason","McGuiness, David","Lavery, Thomas","Stewart, Charlie",
+  "Peterson, Trent","Jenkins, Graeme","McKenna, Mark","O'Donoghue, Sally",
+  "Phillips, Clive","Sebastian, Ray","Sit, Brendan","Holehouse, James",
+  "Wilkinson, Paul","Wood, Ross","Chan, Mark","Soire, Daniel",
+  "Ilijic, Matt","Wright, Daniel","Meale, David","Gillies, David",
+  "Baty, Scott","Whisker, Matthew","Gemell, Chris","Byrne, Simon",
+  "Sterin, Hugo","Mirabello, Stuart","Jones, Stuart","Heptinstall, Chris",
+  "Anderson, Eric","Orr, Jane","Johnson, Lauren","Barons, Andrew","Micallef, Mike"
+];
+const ADVICE_COMPLIANCE = [
+  "Brooks, Kevin and Kerrie","de Stefanis, Mark and Leigh","Sahlani, Mark",
+  "Morris, Jeff and Keane, Orla","Davies, Richard and Sheree","Nel, Warren and Kim",
+  "Jebens, Jens and Bhaskar, Prerna","Valk, Jason and Kirsty","Watts, Grant and Amanda",
+  "Libbert, Darren and La Faber, Belinda","Johnson, Mike and Brooke",
+  "O'Brien, Ben and Melita","Parkes, Damian","Bedford, Andrew and Mandy",
+  "Paola, Chris and Mai-lien"
+];
+const ADVICE_SET = new Set(ADVICE_COMPLIANCE);
+const ALL_CLIENTS = [...FILE_NOTE_CLIENTS, ...ADVICE_COMPLIANCE];
+
+// ── DAYS ──────────────────────────────────────────────────────
+const ALL_DAYS = [
+  {date:'2026-06-11',label:'Thu 11 Jun',wkd:false},
+  {date:'2026-06-12',label:'Fri 12 Jun',wkd:false},
+  {date:'2026-06-13',label:'Sat 13 Jun',wkd:true},
+  {date:'2026-06-14',label:'Sun 14 Jun',wkd:true},
+  {date:'2026-06-15',label:'Mon 15 Jun',wkd:false},
+  {date:'2026-06-16',label:'Tue 16 Jun',wkd:false},
+  {date:'2026-06-17',label:'Wed 17 Jun',wkd:false},
+  {date:'2026-06-18',label:'Thu 18 Jun',wkd:false},
+  {date:'2026-06-19',label:'Fri 19 Jun',wkd:false},
+  {date:'2026-06-20',label:'Sat 20 Jun',wkd:true},
+  {date:'2026-06-21',label:'Sun 21 Jun',wkd:true},
+  {date:'2026-06-22',label:'Mon 22 Jun',wkd:false},
+  {date:'2026-06-23',label:'Tue 23 Jun',wkd:false},
+  {date:'2026-06-24',label:'Wed 24 Jun',wkd:false},
+  {date:'2026-06-25',label:'Thu 25 Jun',wkd:false},
+  {date:'2026-06-26',label:'Fri 26 Jun',wkd:false},
+  {date:'2026-06-27',label:'Sat 27 Jun',wkd:true},
+  {date:'2026-06-28',label:'Sun 28 Jun',wkd:true},
+  {date:'2026-06-29',label:'Mon 29 Jun',wkd:false},
+  {date:'2026-06-30',label:'Tue 30 Jun',wkd:false},
+  {date:'2026-07-01',label:'Wed 1 Jul',wkd:false},
+  {date:'2026-07-02',label:'Thu 2 Jul',wkd:false},
+  {date:'2026-07-03',label:'Fri 3 Jul',wkd:false},
+];
+const UNASSIGNED = '__unassigned__';
+
+const WEEKS = [
+  {label:'Week 1',sub:'Jun 11–14',dates:['2026-06-11','2026-06-12','2026-06-13','2026-06-14']},
+  {label:'Week 2',sub:'Jun 15–21',dates:['2026-06-15','2026-06-16','2026-06-17','2026-06-18','2026-06-19','2026-06-20','2026-06-21']},
+  {label:'Week 3',sub:'Jun 22–28',dates:['2026-06-22','2026-06-23','2026-06-24','2026-06-25','2026-06-26','2026-06-27','2026-06-28']},
+  {label:'Week 4',sub:'Jun 29–Jul 3',dates:['2026-06-29','2026-06-30','2026-07-01','2026-07-02','2026-07-03']},
+];
+
+// ── DEFAULT SCHEDULE ──────────────────────────────────────────
+// Schedule is now: { date: [ {client, task}, ... ] }
+function buildDefaultSchedule() {
+  const s = {}; ALL_DAYS.forEach(d => s[d.date] = []);
+  s[UNASSIGNED] = [];
+  const wdays = ALL_DAYS.filter(d => !d.wkd);
+  FILE_NOTE_CLIENTS.forEach((c,i) => {
+    const idx = Math.min(Math.floor(i/3), wdays.length-1);
+    s[wdays[idx].date].push({client:c, task:'fn'});
+  });
+  ADVICE_COMPLIANCE.forEach((c,i) => {
+    const idx = Math.min(12+Math.floor(i/2), wdays.length-1);
+    s[wdays[idx].date].push({client:c, task:'fn'});
+  });
+  return s;
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── STATE ─────────────────────────────────────────────────────
+// done: Set of "client||task" keys
+// schedule: { date: [{client, task}, ...] }
+// deleted: Set of "client||task" keys
+let state = {
+  done: new Set(),
+  schedule: buildDefaultSchedule(),
+  deleted: new Set(),
+  ts: 0,
+  tab: 'clients',
+  showMoveFor: null,   // "client||task" string
+};
+
+function itemKey(client, task) { return `${client}||${task}`; }
+function dbSafe(k) { return k.replace(/[.#$\[\]\/]/g,'_'); }
+
+let isSaving = false;
+let dragItem = null; // {client, task}
+
+function saveState() {
+  state.ts = Date.now();
+  // 1. localStorage — instant, guaranteed
+  try {
+    localStorage.setItem('fn2026v5', JSON.stringify({
+      done: [...state.done],
+      schedule: state.schedule,
+      deleted: [...state.deleted],
+      ts: state.ts,
+    }));
+  } catch(e) { console.error('localStorage save failed', e); }
+  // 2. Firebase — background sync
+  const done = {}; state.done.forEach(k => done[dbSafe(k)] = true);
+  const del = {}; state.deleted.forEach(k => del[dbSafe(k)] = true);
+  const payload = {
+    done: Object.keys(done).length ? done : null,
+    schedule: state.schedule,
+    deleted: Object.keys(del).length ? del : null,
+    ts: state.ts,
+  };
+  set(ref(db,'fn2026v5'), payload).catch(e => console.error('Firebase save failed', e));
+}
+
+function loadLocal() {
+  try {
+    const cached = localStorage.getItem('fn2026v5');
+    if (!cached) return;
+    const v = JSON.parse(cached);
+    state.done = new Set(v.done || []);
+    if (v.schedule) {
+      Object.keys(v.schedule).forEach(date => {
+        if (Array.isArray(v.schedule[date])) {
+          v.schedule[date] = v.schedule[date].map(i => typeof i === 'string' ? {client:i, task:'fn'} : i);
+        }
+      });
+      if (!v.schedule[UNASSIGNED]) v.schedule[UNASSIGNED] = [];
+      state.schedule = v.schedule;
+    }
+    state.deleted = new Set(v.deleted || []);
+    state.ts = v.ts || 0;
+  } catch(e) { console.error('localStorage load failed', e); }
+}
+
+// ── AUTH ──────────────────────────────────────────────────────
+window.login = function() {
+  if (document.getElementById('pw').value === 'Lachlan') {
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadLocal();
+    render();
+    initFirebase();
+  } else {
+    document.getElementById('auth-err').textContent = 'Incorrect password';
+  }
+};
+
+function initFirebase() {
+  const sel = document.getElementById('new-day');
+  ALL_DAYS.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.date; o.textContent = d.label + (d.wkd?' (weekend)':'');
+    sel.appendChild(o);
+  });
+  onValue(ref(db,'fn2026v5'), snap => {
+    const val = snap.val() || {};
+    const remoteTs = val.ts || 0;
+    if (remoteTs <= (state.ts || 0)) return;  // local is same or newer
+    state.done = new Set();
+    if (val.done) {
+      Object.keys(val.done).forEach(k => {
+        const found = findOriginalKey(k);
+        state.done.add(found || k);
+      });
+    }
+    if (val.schedule) {
+      const sched = val.schedule;
+      Object.keys(sched).forEach(date => {
+        if (Array.isArray(sched[date])) {
+          sched[date] = sched[date].map(item =>
+            typeof item === 'string' ? {client: item, task: 'fn'} : item
+          );
+        }
+      });
+      if (!sched[UNASSIGNED]) sched[UNASSIGNED] = [];
+      state.schedule = sched;
+    }
+    state.deleted = new Set();
+    if (val.deleted) {
+      Object.keys(val.deleted).forEach(k => {
+        const found = findOriginalKey(k);
+        state.deleted.add(found || k);
+      });
+    }
+    state.ts = remoteTs;
+    try {
+      localStorage.setItem('fn2026v5', JSON.stringify({
+        done: [...state.done], schedule: state.schedule, deleted: [...state.deleted], ts: state.ts,
+      }));
+    } catch(e) {}
+    render();
+  });
+}
+
+function allScheduledItems() {
+  // Flatten all {client,task} items across all days, deduplicated
+  const seen = new Set();
+  const items = [];
+  Object.values(state.schedule).forEach(dayItems => {
+    (dayItems||[]).forEach(item => {
+      const k = itemKey(item.client, item.task);
+      if (!seen.has(k) && !state.deleted.has(k)) { seen.add(k); items.push(item); }
+    });
+  });
+  return items;
+}
+
+function findOriginalKey(dbKey) {
+  // Try to find a matching itemKey from schedule
+  for (const dayItems of Object.values(state.schedule)) {
+    for (const item of (dayItems||[])) {
+      const k = itemKey(item.client, item.task);
+      if (dbSafe(k) === dbKey) return k;
+    }
+  }
+  return null;
+}
+
+function esc(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// ── RENDER ────────────────────────────────────────────────────
+function render() {
+  const all = allScheduledItems();
+  const total = all.length;
+  const doneCount = all.filter(({client,task}) => state.done.has(itemKey(client,task))).length;
+  const pct = total > 0 ? Math.round(doneCount/total*100) : 0;
+  const remaining = total - doneCount;
+  const t = todayStr();
+  const daysLeft = ALL_DAYS.filter(d => d.date >= t).length;
+  const perDay = daysLeft > 0 ? (remaining/daysLeft).toFixed(1) : 0;
+
+  document.getElementById('h-done').textContent = doneCount;
+  document.getElementById('h-total').textContent = total;
+
+  // Build 3 progress bars (one per task type)
+  const counts = {fn:{t:0,d:0},rp:{t:0,d:0},ap:{t:0,d:0},xp:{t:0,d:0}};
+  all.forEach(({client,task}) => {
+    if (counts[task]) { counts[task].t++; if (state.done.has(itemKey(client,task))) counts[task].d++; }
+  });
+
+  const progHTML = `<div class="prog-box">
+    <div class="prog-row"><span class="prog-label">Progress</span><span class="prog-frac"><span style="color:#22c55e">${doneCount}</span><span style="color:#6b7280;font-size:0.8rem"> / ${total}</span></span></div>
+    <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,#4f8ef7,#22c55e)"></div></div>
+    <div class="prog-eta">${pct}% done · ${remaining} left · ~${perDay}/day to finish by Jul 3</div>
+    <div class="prog-legend">
+      <span class="leg"><span class="leg-dot" style="background:#4f8ef7"></span>📄 FN ${counts.fn.d}/${counts.fn.t}</span>
+      <span class="leg"><span class="leg-dot" style="background:#f59e0b"></span>🔍 RP ${counts.rp.d}/${counts.rp.t}</span>
+      <span class="leg"><span class="leg-dot" style="background:#22c55e"></span>📑 AP ${counts.ap.d}/${counts.ap.t}</span>
+      <span class="leg"><span class="leg-dot" style="background:#22d3ee"></span>💻 XP ${counts.xp?counts.xp.d:0}/${counts.xp?counts.xp.t:0}</span>
+    </div>
+  </div>`;
+
+  if (state.tab === 'schedule') renderSchedule(progHTML, t);
+  else renderClients(progHTML);
+}
+
+function renderSchedule(progHTML, t) {
+  let html = progHTML;
+
+  // ── UNASSIGNED SECTION ────────────────────────────────────
+  const unassigned = (state.schedule[UNASSIGNED]||[]).filter(item => !state.deleted.has(itemKey(item.client,item.task)));
+  if (unassigned.length > 0) {
+    html += `<div class="week-block">
+      <div class="week-hdr">
+        <span class="week-label" style="color:#f59e0b">⚠ To Assign</span>
+        <span class="week-stats" style="color:#f59e0b">${unassigned.length} task${unassigned.length!==1?'s':''}</span>
+      </div>
+      <div style="background:#1c1400;border:1px solid #f59e0b;border-radius:8px;padding:8px 11px;">
+        <div class="task-items">`;
+    unassigned.forEach(item => {
+      const k = itemKey(item.client, item.task);
+      const isDone = state.done.has(k);
+      const isAdvice = ADVICE_SET.has(item.client);
+      const meta = TASK_META[item.task] || TASK_META.fn;
+      const showMove = state.showMoveFor === k;
+      html += `<div class="task-item${isAdvice?' is-advice-client':''}${isDone?' is-done':''}"
+        style="position:relative;border-color:#3d2e00;"
+        draggable="true"
+        ondragstart="onDragStart(event,'${esc(item.client)}','${item.task}','${UNASSIGNED}')"
+        ondragend="onDragEnd(event)">
+        <span style="font-size:0.65rem;color:#6b7280;cursor:grab;padding-right:4px;">⠿</span>
+        <span class="task-client">${isAdvice?'📋 ':''}${item.client}</span>
+        <span class="task-badge ${meta.cls}${isDone?' done':''}" onclick="toggleDone('${esc(item.client)}','${item.task}')">${meta.icon} ${meta.label}${isDone?' ✓':''}</span>
+        <div class="task-actions">
+          <span class="ta-btn" onclick="startEdit('${esc(item.client)}')" title="Rename">✎</span>
+          <span class="ta-btn" onclick="changeTask('${esc(item.client)}','${item.task}','${UNASSIGNED}')" title="Change type">⇄</span>
+          <span class="ta-btn" onclick="toggleMove('${esc(k)}','${UNASSIGNED}')" title="Assign to day" style="color:#f59e0b;border-color:#f59e0b;font-weight:700;">Assign →</span>
+          <span class="ta-btn del" onclick="delItem('${esc(item.client)}','${item.task}')">×</span>
+        </div>
+        ${showMove ? renderMoveDD(item.client, item.task, UNASSIGNED) : ''}
+      </div>`;
+    });
+    html += `</div></div></div>`;
+  }
+
+  WEEKS.forEach(week => {
+    const wDays = ALL_DAYS.filter(d => week.dates.includes(d.date));
+    let wTotal=0, wDone=0;
+    wDays.forEach(day => {
+      (state.schedule[day.date]||[]).forEach(item => {
+        const k = itemKey(item.client,item.task);
+        if (!state.deleted.has(k)) { wTotal++; if (state.done.has(k)) wDone++; }
+      });
+    });
+    html += `<div class="week-block"><div class="week-hdr"><span class="week-label">${week.label} · ${week.sub}</span><span class="week-stats">${wDone}/${wTotal}</span></div>`;
+    wDays.forEach(day => {
+      const isPast = day.date < t, isToday = day.date === t;
+      const items = (state.schedule[day.date]||[]).filter(item => !state.deleted.has(itemKey(item.client,item.task)));
+      const dayDone = items.filter(item => state.done.has(itemKey(item.client,item.task))).length;
+      const allDone = items.length > 0 && dayDone === items.length;
+      let cls = 'day-row';
+      if (isToday) cls += ' is-today'; else if (isPast) cls += ' is-past';
+      if (day.wkd && !isToday) cls += ' is-weekend';
+      if (allDone) cls += ' all-done';
+      html += `<div class="${cls}"><div class="day-inner"
+        ondragover="onDragOver(event)"
+        ondragleave="onDragLeave(event)"
+        ondrop="onDrop(event,'${day.date}')">
+        <div class="day-top">
+          <span class="day-name">${day.label}
+            ${isToday?'<span class="badge badge-today">TODAY</span>':''}
+            ${day.wkd&&!isToday?'<span class="badge badge-wkd">WKD</span>':''}
+          </span>
+          <span class="day-count${allDone?' done':''}">${dayDone}/${items.length}</span>
+        </div>
+        <div class="task-items">`;
+      if (items.length === 0) {
+        html += `<span class="no-tasks">No tasks scheduled</span>`;
+      } else {
+        items.forEach(item => {
+          const k = itemKey(item.client, item.task);
+          const isDone = state.done.has(k);
+          const isAdvice = ADVICE_SET.has(item.client);
+          const meta = TASK_META[item.task] || TASK_META.fn;
+          const showMove = state.showMoveFor === k;
+          html += `<div class="task-item${isAdvice?' is-advice-client':''}${isDone?' is-done':''}" style="position:relative"
+            draggable="true"
+            ondragstart="onDragStart(event,'${esc(item.client)}','${item.task}','${day.date}')"
+            ondragend="onDragEnd(event)">
+            <span style="font-size:0.65rem;color:#6b7280;cursor:grab;padding-right:2px;">⠿</span>
+            <span class="task-client" ondblclick="startEdit('${esc(item.client)}')" title="Double-tap to rename">${isAdvice?'📋 ':''}${item.client}</span>
+            <span class="task-badge ${meta.cls}${isDone?' done':''}" onclick="toggleDone('${esc(item.client)}','${item.task}')">${meta.icon} ${meta.label}${isDone?' ✓':''}</span>
+            <div class="task-actions">
+              <span class="ta-btn" onclick="startEdit('${esc(item.client)}')" title="Rename">✎</span>
+              <span class="ta-btn" onclick="changeTask('${esc(item.client)}','${item.task}','${day.date}')" title="Change task type">⇄</span>
+              <span class="ta-btn" onclick="toggleMove('${esc(k)}','${day.date}')">↕</span>
+              <span class="ta-btn del" onclick="delItem('${esc(item.client)}','${item.task}')">×</span>
+            </div>
+            ${showMove ? renderMoveDD(item.client, item.task, day.date) : ''}
+          </div>`;
+        });
+      }
+      html += `</div></div></div>`;
+    });
+    html += `</div>`;
+  });
+  document.getElementById('tab-schedule').innerHTML = html;
+}
+
+function renderMoveDD(client, task, fromDate) {
+  const k = esc(itemKey(client,task));
+  let html = `<div class="move-dd"><div class="move-dd-title">Move to…</div>`;
+  if (fromDate !== UNASSIGNED) {
+    html += `<div class="move-dd-item" style="color:#f59e0b" onclick="moveItem('${esc(client)}','${task}','${fromDate}','${UNASSIGNED}')">⚠ To Assign</div>`;
+  }
+  ALL_DAYS.filter(d => d.date !== fromDate).forEach(d => {
+    const cnt = (state.schedule[d.date]||[]).filter(i => !state.deleted.has(itemKey(i.client,i.task))).length;
+    html += `<div class="move-dd-item" onclick="moveItem('${esc(client)}','${task}','${fromDate}','${d.date}')">${d.label} <span style="color:#6b7280">(${cnt})</span></div>`;
+  });
+  html += `<div class="move-dd-cancel" onclick="closeMoveDD()">Cancel</div></div>`;
+  return html;
+}
+
+function renderClients(progHTML) {
+  // Group by client, show all their tasks
+  const clientMap = {};
+  Object.entries(state.schedule).forEach(([date, items]) => {
+    (items||[]).forEach(item => {
+      const k = itemKey(item.client, item.task);
+      if (state.deleted.has(k)) return;
+      if (!clientMap[item.client]) clientMap[item.client] = [];
+      // avoid dupes
+      if (!clientMap[item.client].find(x => x.task === item.task)) {
+        const dayEntry = ALL_DAYS.find(d => d.date === date);
+        clientMap[item.client].push({task: item.task, date, dayLabel: dayEntry?.label||'—'});
+      }
+    });
+  });
+
+  const clients = Object.keys(clientMap).sort((a,b) => {
+    const aDone = clientMap[a].every(x => state.done.has(itemKey(a,x.task)));
+    const bDone = clientMap[b].every(x => state.done.has(itemKey(b,x.task)));
+    return aDone - bDone;
+  });
+
+  let html = progHTML + `<div>`;
+  clients.forEach(c => {
+    const isAdvice = ADVICE_SET.has(c);
+    const tasks = clientMap[c];
+    const allDone = tasks.every(x => state.done.has(itemKey(c,x.task)));
+    html += `<div class="cl-card${isAdvice?' is-advice':''}">
+      <div class="cl-top">
+        <span class="cl-name" style="${allDone?'text-decoration:line-through;color:#6b7280':''}" ondblclick="startEdit('${esc(c)}')">${c}</span>
+        ${isAdvice?'<span class="advice-tag">ADVICE</span>':''}
+        <span class="ta-btn" onclick="startEdit('${esc(c)}')" style="font-size:0.7rem;padding:2px 6px;border-radius:4px;border:1px solid #2a2f45;background:#141820;color:#6b7280;cursor:pointer;margin-right:2px" title="Rename">✎</span>
+        <span class="del-x" onclick="delClient('${esc(c)}')">×</span>
+      </div>
+      <div class="cl-task-rows">`;
+    tasks.forEach(({task, date: taskDate, dayLabel}) => {
+      const k = itemKey(c, task);
+      const isDone = state.done.has(k);
+      const meta = TASK_META[task]||TASK_META.fn;
+      html += `<div class="cl-task-row">
+        <span class="cl-task-badge ${meta.cls}${isDone?' done':''}" onclick="toggleDone('${esc(c)}','${task}')">${meta.icon} ${meta.label}${isDone?' ✓':''}</span>
+        <span class="cl-day-tag">${dayLabel}</span>
+        <span class="cl-task-del" onclick="changeTask('${esc(c)}','${task}','${taskDate}')" title="Change type" style="color:#6b7280;cursor:pointer;padding:0 4px;font-size:0.72rem;">⇄</span>
+        <span class="cl-task-del" onclick="delItem('${esc(c)}','${task}')">×</span>
+      </div>`;
+    });
+    // Add task buttons for tasks not yet assigned
+    const existingTasks = tasks.map(x=>x.task);
+    const missing = Object.keys(TASK_META).filter(t => !existingTasks.includes(t));
+    if (missing.length > 0) {
+      html += `<div class="cl-add-task">`;
+      missing.forEach(t => {
+        const meta = TASK_META[t];
+        html += `<span class="cl-add-btn ${t}" onclick="addTaskForClient('${esc(c)}','${t}')">+ ${meta.icon} ${meta.label}</span>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  document.getElementById('tab-clients').innerHTML = html;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────
+window.showTab = function(tab) {
+  state.tab = tab;
+  document.getElementById('tab-schedule').style.display = tab==='schedule'?'block':'none';
+  document.getElementById('tab-clients').style.display = tab==='clients'?'block':'none';
+  document.getElementById('tab-schedule-btn').classList.toggle('active', tab==='schedule');
+  document.getElementById('tab-clients-btn').classList.toggle('active', tab==='clients');
+  render();
+};
+
+window.toggleDone = function(client, task) {
+  const k = itemKey(client, task);
+  if (state.done.has(k)) state.done.delete(k); else state.done.add(k);
+  state.showMoveFor = null;
+  saveState(); render();
+};
+
+window.toggleMove = function(k, fromDate) {
+  state.showMoveFor = state.showMoveFor === k ? null : k;
+  document.getElementById('tap-close').style.display = state.showMoveFor ? 'block' : 'none';
+  render();
+};
+
+window.closeMoveDD = function() {
+  state.showMoveFor = null;
+  document.getElementById('tap-close').style.display = 'none';
+  render();
+};
+
+window.moveItem = function(client, task, fromDate, toDate) {
+  if (fromDate === toDate) { closeMoveDD(); return; }
+  state.schedule[fromDate] = (state.schedule[fromDate]||[]).filter(i => !(i.client===client && i.task===task));
+  if (!state.schedule[toDate]) state.schedule[toDate] = [];
+  state.schedule[toDate].push({client, task});
+  state.showMoveFor = null;
+  document.getElementById('tap-close').style.display = 'none';
+  saveState(); render();
+};
+
+window.delItem = function(client, task) {
+  if (!confirm(`Remove ${TASK_META[task]?.label||task} for ${client}?`)) return;
+  const k = itemKey(client, task);
+  state.deleted.add(k);
+  Object.keys(state.schedule).forEach(d => {
+    state.schedule[d] = (state.schedule[d]||[]).filter(i => !(i.client===client && i.task===task));
+  });
+  state.done.delete(k);
+  saveState(); render();
+};
+
+window.delClient = function(client) {
+  if (!confirm(`Remove all tasks for ${client}?`)) return;
+  Object.keys(TASK_META).forEach(task => {
+    const k = itemKey(client, task);
+    state.deleted.add(k);
+    state.done.delete(k);
+  });
+  Object.keys(state.schedule).forEach(d => {
+    state.schedule[d] = (state.schedule[d]||[]).filter(i => i.client !== client);
+  });
+  saveState(); render();
+};
+
+window.addTaskForClient = function(client, task) {
+  const day = UNASSIGNED;
+  if (!state.schedule[day]) state.schedule[day] = [];
+  // remove from deleted if it was deleted before
+  state.deleted.delete(itemKey(client, task));
+  state.schedule[day].push({client, task});
+  saveState(); render();
+};
+
+let editingClient = null;
+
+window.startEdit = function(client) {
+  editingClient = client;
+  document.getElementById('edit-name').value = client;
+  document.getElementById('edit-overlay').style.display = 'block';
+  document.getElementById('edit-sheet').style.display = 'block';
+  setTimeout(() => {
+    const inp = document.getElementById('edit-name');
+    inp.focus(); inp.select();
+  }, 100);
+};
+
+window.closeEdit = function() {
+  editingClient = null;
+  document.getElementById('edit-overlay').style.display = 'none';
+  document.getElementById('edit-sheet').style.display = 'none';
+};
+
+window.saveEdit = function() {
+  const newName = document.getElementById('edit-name').value.trim();
+  if (!newName || !editingClient || newName === editingClient) { closeEdit(); return; }
+  const oldName = editingClient;
+  // Update schedule
+  Object.keys(state.schedule).forEach(date => {
+    state.schedule[date] = (state.schedule[date]||[]).map(item =>
+      item.client === oldName ? {...item, client: newName} : item
+    );
+  });
+  // Update done keys
+  const newDone = new Set();
+  state.done.forEach(k => {
+    if (k.startsWith(oldName + '||')) {
+      newDone.add(newName + '||' + k.split('||')[1]);
+    } else {
+      newDone.add(k);
+    }
+  });
+  state.done = newDone;
+  // Update deleted keys
+  const newDeleted = new Set();
+  state.deleted.forEach(k => {
+    if (k.startsWith(oldName + '||')) {
+      newDeleted.add(newName + '||' + k.split('||')[1]);
+    } else {
+      newDeleted.add(k);
+    }
+  });
+  state.deleted = newDeleted;
+  closeEdit();
+  saveState(); render();
+};
+
+let changingTask = null; // {client, oldTask, date}
+
+window.changeTask = function(client, oldTask, date) {
+  changingTask = {client, oldTask, date};
+  const sheet = document.getElementById('change-sheet');
+  const title = document.getElementById('change-title');
+  title.textContent = client;
+  // Highlight current
+  document.querySelectorAll('.change-opt').forEach(el => {
+    el.style.borderColor = el.dataset.task === oldTask ? '#4f8ef7' : '#2a2f45';
+    el.style.opacity = el.dataset.task === oldTask ? '0.4' : '1';
+  });
+  document.getElementById('change-overlay').style.display = 'block';
+  sheet.style.display = 'block';
+};
+
+window.applyChangeTask = function(newTask) {
+  if (!changingTask) return;
+  const {client, oldTask, date} = changingTask;
+  if (newTask === oldTask) { closeChangeTask(); return; }
+  const exists = Object.values(state.schedule).some(items =>
+    (items||[]).some(i => i.client === client && i.task === newTask && !state.deleted.has(itemKey(i.client, i.task)))
+  );
+  if (exists) {
+    closeChangeTask();
+    alert(TASK_META[newTask].label + ' already scheduled for ' + client);
+    return;
+  }
+  const dayItems = state.schedule[date] || [];
+  const idx = dayItems.findIndex(i => i.client === client && i.task === oldTask);
+  if (idx !== -1) dayItems[idx] = {client, task: newTask};
+  const oldKey = itemKey(client, oldTask);
+  const newKey = itemKey(client, newTask);
+  if (state.done.has(oldKey)) { state.done.delete(oldKey); state.done.add(newKey); }
+  state.deleted.delete(newKey);
+  closeChangeTask();
+  saveState(); render();
+};
+
+window.closeChangeTask = function() {
+  changingTask = null;
+  document.getElementById('change-overlay').style.display = 'none';
+  document.getElementById('change-sheet').style.display = 'none';
+};
+
+// ── DRAG AND DROP ────────────────────────────────────────────
+window.onDragStart = function(e, client, task, fromDate) {
+  dragItem = {client, task, fromDate};
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', client + '||' + task);
+  setTimeout(() => e.target.style.opacity = '0.4', 0);
+};
+
+window.onDragEnd = function(e) {
+  e.target.style.opacity = '';
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  dragItem = null;
+};
+
+window.onDragOver = function(e) {
+  if (!dragItem) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+};
+
+window.onDragLeave = function(e) {
+  e.currentTarget.classList.remove('drag-over');
+};
+
+window.onDrop = function(e, toDate) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragItem) return;
+  const {client, task, fromDate} = dragItem;
+  moveItem(client, task, fromDate, toDate);
+  dragItem = null;
+};
+
+window.openAdd = function() {
+  document.getElementById('overlay').style.display = 'block';
+  document.getElementById('sheet').style.display = 'block';
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-task').value = 'fn';
+  document.getElementById('new-day').value = '';
+  setTimeout(() => document.getElementById('new-name').focus(), 100);
+};
+window.closeAdd = function() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('sheet').style.display = 'none';
+};
+window.addTask = function() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) return;
+  const task = document.getElementById('new-task').value;
+  const day = document.getElementById('new-day').value || UNASSIGNED;
+  if (!state.schedule[day]) state.schedule[day] = [];
+  state.deleted.delete(itemKey(name, task));
+  state.schedule[day].push({client: name, task});
+  closeAdd();
+  saveState(); render();
+};
+</script>
+</body>
+</html>
